@@ -146,31 +146,31 @@ def main(args):
         os.makedirs(data_path)
 
     if args.dataset in eraser_datasets:
-        eraser_path = os.path.join(args.data_dir, 'eraser', args.dataset)
-        documents_path = os.path.join(args.data_dir, args.dataset, args.arch, 'documents.pkl')
-        documents = load_documents(eraser_path) # -> Dict[str, List[List[str]]]
-        logger.info(f'Loaded {len(documents)} documents')
+        # eraser_path = os.path.join(args.data_dir, 'eraser', args.dataset)
+        # documents_path = os.path.join(args.data_dir, args.dataset, args.arch, 'documents.pkl')
+        # documents = load_documents(eraser_path) # -> Dict[str, List[List[str]]]
+        # logger.info(f'Loaded {len(documents)} documents')
 
         if args.dataset == 'cose':
             logger.info(f'Loading CoS-E v1.11 {args.split}')
             dataset = load_dataset('cose', 'v1.11')
 
-        #     if args.split == 'train':
-        #         dataset = dataset['train'].train_test_split(test_size=0.11)['train']
-        #     elif args.split == 'dev':
-        #         dataset = dataset['train'].train_test_split(test_size=0.11)['test']
-        #     elif args.split == 'test':
-        #         dataset = dataset['test']
-        #     else:
-        #         raise NotImplementedError
-        # else:
-            # raise NotImplementedError
+            if args.split == 'train':
+                dataset = dataset['train'].train_test_split(test_size=0.11)['train']
+            elif args.split == 'dev':
+                dataset = dataset['train'].train_test_split(test_size=0.11)['test']
+            elif args.split == 'test':
+                dataset = dataset['test']
+            else:
+                raise NotImplementedError
+        else:
+            raise NotImplementedError
 
         if os.path.exists(documents_path):
-            # pass
-            logger.info(f'Loading processed documents from {documents_path}')
-            (interned_documents, interned_document_token_slices) = torch.load(documents_path)
-            logger.info(f'Loaded {len(interned_documents)} processed documents')
+            pass
+            # logger.info(f'Loading processed documents from {documents_path}')
+            # (interned_documents, interned_document_token_slices) = torch.load(documents_path)
+            # logger.info(f'Loaded {len(interned_documents)} processed documents')
         else:
             logger.info(f'Processing documents')
             special_token_map = {

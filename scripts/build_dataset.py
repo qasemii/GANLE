@@ -200,6 +200,7 @@ def main(args):
         annotations_path = os.path.join(eraser_path, f'{split}.jsonl')
         annotations = annotations_from_jsonl(annotations_path, dataset)
         interned_annotations = bert_intern_annotation(annotations, tokenizer)
+        # breakpoint()
         evidence_data = annotations_to_evidence_token_identification(annotations, documents, interned_documents, interned_document_token_slices)
         assert len(evidence_data) == num_examples
 
@@ -222,8 +223,9 @@ def main(args):
             answer_ids = [tokenizer(x, add_special_tokens=False)['input_ids'] for x in answers]
 
             # Explanations (TODO: put breakpointy to see what to do)
-            explanations = None
-
+            explanations = evidence_sentences[0].explanation
+            explanations = [tokenizer(explanations, add_special_tokens=False)['input_ids']]
+            # breakpoint()
             input_ids, attention_mask, rationale, inv_rationale, rand_rationale, has_rationale, expl_ids, expl_mask = [], [], [], [], [], [], [], []
             for answer in answer_ids:
                 cur_input_ids = [tokenizer.cls_token_id] + q_marker + question + [tokenizer.sep_token_id] + a_marker + answer + [tokenizer.sep_token_id]
@@ -255,7 +257,7 @@ def main(args):
 
 
                 # Explanation ##############
-                cur_expl_ids = [tokenizer.cls_token_id] + explanations + [tokenizer.sep_token_id] + [tokenizer.sep_token_id]
+                cur_expl_ids = [tokenizer.cls_token_id] + explanations + [tokenizer.sep_token_id]
 
                 num_tokens = len(cur_expl_ids)
                 if num_tokens > actual_max_length:

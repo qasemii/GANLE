@@ -118,14 +118,15 @@ def annotations_from_jsonl(fp: str, hg_dataset: DatasetDict) -> List[Annotation]
                 ev_group = tuple([Evidence(**ev) for ev in ev_group])
                 ev_groups.append(ev_group)
             content['evidences'] = frozenset(ev_groups)
-
+            # breakpoint()
             if content['annotation_id'] in hg_dataset['train']['id']:
                 hg_index = hg_dataset['train']['id'].index(content['annotation_id'])
                 expl = hg_dataset['train'][hg_index]['abstractive_explanation']
-            else:
+            elif content['annotation_id'] in hg_dataset['validation']['id']:
                 hg_index = hg_dataset['validation']['id'].index(content['annotation_id'])
                 expl = hg_dataset['validation'][hg_index]['abstractive_explanation']
-
+            else:
+              continue
             content['explanation'] = expl
             ret.append(Annotation(**content))
     return ret
