@@ -112,7 +112,7 @@ def align_rationale_with_tokens(input_ids, raw_tokens, raw_rationale, tokenizer)
 
     return rationale
 
-def load_dataset(data_path):
+def my_load_dataset(data_path):
     dataset_dict = ddict(list)
     for key in tqdm(data_keys, desc=f'Loading {args.split} dataset'):
         with open(os.path.join(data_path, f'{key}.pkl'), 'rb') as f:
@@ -286,7 +286,7 @@ def main(args):
         print(f'Actual max length: {actual_max_length}')
 
     else:
-        dataset_dict = load_dataset(data_path)
+        dataset_dict = my_load_dataset(data_path)
 
     save_dataset(data_path, dataset_dict, args.split, args.num_samples, args.seed)
 
