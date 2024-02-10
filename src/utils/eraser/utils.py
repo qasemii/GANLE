@@ -130,16 +130,36 @@ def annotations_from_jsonl(fp: str, hg_dataset: DatasetDict) -> List[Annotation]
             ret.append(Annotation(**content))
     return ret
 
+
+
 # def annotations_from_hg(split: str) -> List[Annotation]:
+
+
+#     annotation_id='00046426483cdbd28a73a1f3f3c8b7f3', 
+#     query='middle east [sep] abrahamic [sep] city [sep] jerusalem [sep] jewish community', 
+#     evidences=frozenset({(Evidence(text='What group of old testimant believers gather in a place called a temple to worship ?', 
+#                                    docid='00046426483cdbd28a73a1f3f3c8b7f3', 
+#                                    start_token=0, 
+#                                    end_token=16, 
+#                                    start_sentence=-1, 
+#                                    end_sentence=-1),)}), 
+#     classification='E', 
+#     query_type='temple', 
+#     docids=None)
+
 #     ret = []
-    
-#     for id in split['id']:
-#         content = json.loads(line)
+#     for content in hg_dataset:
 #         ev_groups = []
 #         for ev_group in content['evidences']:
 #             ev_group = tuple([Evidence(**ev) for ev in ev_group])
 #             ev_groups.append(ev_group)
 #         content['evidences'] = frozenset(ev_groups)
+
+#         annotation_id = hg_dataset['id']
+#         query = ' [sep] '.join(hg_dataset['choices'])
+#         expl = hg_dataset['abstractive_explanation']
+
+#         content['explanation'] = expl
 #         ret.append(Annotation(**content))
 #     return ret
 

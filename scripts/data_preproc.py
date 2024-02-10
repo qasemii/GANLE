@@ -151,7 +151,6 @@ def main(args):
         documents = load_documents(eraser_path) # -> Dict[str, List[List[str]]]
         logger.info(f'Loaded {len(documents)} documents')
 
-        # Since ERASER does not include the NLEs we take them from  Huggingface
         if args.dataset == 'cose':
             logger.info(f'Loading CoS-E v1.11 {args.split}')
             dataset = load_dataset('cose', 'v1.11')
