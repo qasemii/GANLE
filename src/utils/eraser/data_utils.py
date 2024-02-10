@@ -63,8 +63,16 @@ def bert_intern_annotation(annotations: List[Annotation], tokenizer):
             query = tokenizer.convert_tokens_to_ids(query)
         else:
             query = []
+
+        explanation = list(chain.from_iterable(tokenizer.tokenize(w) for w in ann.explanation.split()))
+        if len(explanation) > 0:
+            explanation = tokenizer.convert_tokens_to_ids(explanation)
+        else:
+            explanation = []
+
         ret.append(Annotation(annotation_id=ann.annotation_id,
                               query=tuple(query),
+                              explanation = tuple(explanation),
                               evidences=frozenset(ev_groups),
                               classification=ann.classification,
                               query_type=ann.query_type))
@@ -156,6 +164,7 @@ def annotations_to_evidence_token_identification(annotations: List[Annotation],
                 sent = interned_documents[docid][s]
                 ret[annid][docid].append(SentenceEvidence(kls=tuple(token_assignments[start:end]),
                                                           query=ann.query,
+                                                          explanation=ann.explanation,
                                                           ann_id=ann.annotation_id,
                                                           docid=docid,
                                                           index=s,

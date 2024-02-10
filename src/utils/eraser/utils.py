@@ -1,6 +1,7 @@
 import json
 import os
 
+from datasets import DatasetDict
 from dataclasses import dataclass, asdict, is_dataclass
 from itertools import chain
 from typing import Dict, List, Set, Tuple, Union, FrozenSet
@@ -45,6 +46,7 @@ class Annotation:
     """
     annotation_id: str
     query: Union[str, Tuple[int]]
+    explanation: Union[str, Tuple[int]]
     evidences: Union[Set[Tuple[Evidence]], FrozenSet[Tuple[Evidence]]]
     classification: str
     query_type: str = None
@@ -106,7 +108,7 @@ def write_jsonl(jsonl, output_file):
             of.write('\n')
 
 
-def annotations_from_jsonl(fp: str) -> List[Annotation]:
+def annotations_from_jsonl(fp: str, hg_dataset: DatasetDict) -> List[Annotation]:
     ret = []
     with open(fp, 'r') as inf:
         for line in inf:
@@ -116,9 +118,30 @@ def annotations_from_jsonl(fp: str) -> List[Annotation]:
                 ev_group = tuple([Evidence(**ev) for ev in ev_group])
                 ev_groups.append(ev_group)
             content['evidences'] = frozenset(ev_groups)
+
+            if ev_groups.docid in hg_dataset['train']['id']:
+                hg_index = hg_dataset['train']['id'].index(ev_groups.docid)
+                expl = hg_dataset['train'][hg_index]['abstractive_explanation']
+            else:
+                hg_index = hg_dataset['validation']['id'].index(ev_groups.docid)
+                expl = hg_dataset['validation'][hg_index]['abstractive_explanation']
+
+            content['explanation'] = expl
             ret.append(Annotation(**content))
     return ret
 
+# def annotations_from_hg(split: str) -> List[Annotation]:
+#     ret = []
+    
+#     for id in split['id']:
+#         content = json.loads(line)
+#         ev_groups = []
+#         for ev_group in content['evidences']:
+#             ev_group = tuple([Evidence(**ev) for ev in ev_group])
+#             ev_groups.append(ev_group)
+#         content['evidences'] = frozenset(ev_groups)
+#         ret.append(Annotation(**content))
+#     return ret
 
 def load_datasets(data_dir: str) -> Tuple[List[Annotation], List[Annotation], List[Annotation]]:
     """Loads a training, validation, and test dataset

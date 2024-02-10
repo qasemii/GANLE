@@ -148,36 +148,53 @@ def main(args):
     if args.dataset in eraser_datasets:
         eraser_path = os.path.join(args.data_dir, 'eraser', args.dataset)
         documents_path = os.path.join(args.data_dir, args.dataset, args.arch, 'documents.pkl')
-        documents = load_documents(eraser_path)
+        documents = load_documents(eraser_path) # -> Dict[str, List[List[str]]]
         logger.info(f'Loaded {len(documents)} documents')
+
+        # if args.dataset == 'cose':
+        #     logger.info(f'Loading CoS-E v1.11 {args.split}')
+        #     dataset = load_dataset('cose', 'v1.11')
+
+        #     if args.split == 'train':
+        #         dataset = dataset['train'].train_test_split(test_size=0.11)['train']
+        #     elif args.split == 'dev':
+        #         dataset = dataset['train'].train_test_split(test_size=0.11)['test']
+        #     elif args.split == 'test':
+        #         dataset = dataset['test']
+        #     else:
+        #         raise NotImplementedError
+        # else:
+            # raise NotImplementedError
+
         if os.path.exists(documents_path):
+            # pass
             logger.info(f'Loading processed documents from {documents_path}')
             (interned_documents, interned_document_token_slices) = torch.load(documents_path)
             logger.info(f'Loaded {len(interned_documents)} processed documents')
         else:
             logger.info(f'Processing documents')
             special_token_map = {
-                                    'SEP': [tokenizer.sep_token_id],
-                                    '[SEP]': [tokenizer.sep_token_id],
-                                    '[sep]': [tokenizer.sep_token_id],
-                                    'UNK': [tokenizer.unk_token_id],
-                                    '[UNK]': [tokenizer.unk_token_id],
-                                    '[unk]': [tokenizer.unk_token_id],
-                                    'PAD': [tokenizer.unk_token_id],
-                                    '[PAD]': [tokenizer.unk_token_id],
-                                    '[pad]': [tokenizer.unk_token_id],
-                                }
+                'SEP': [tokenizer.sep_token_id],
+                '[SEP]': [tokenizer.sep_token_id],
+                '[sep]': [tokenizer.sep_token_id],
+                'UNK': [tokenizer.unk_token_id],
+                '[UNK]': [tokenizer.unk_token_id],
+                '[unk]': [tokenizer.unk_token_id],
+                'PAD': [tokenizer.unk_token_id],
+                '[PAD]': [tokenizer.unk_token_id],
+                '[pad]': [tokenizer.unk_token_id],
+            }
             interned_documents = {}
             interned_document_token_slices = {}
+            
             for d, doc in tqdm(documents.items(), desc='Processing documents'):
+            # for d, doc in tqdm(zip(dataset['id'], dataset['question']), desc='Processing documents'):
                 tokenized, w_slices = bert_tokenize_doc(doc, tokenizer, special_token_map=special_token_map)
                 interned_documents[d] = bert_intern_doc(tokenized, tokenizer, special_token_map=special_token_map)
                 interned_document_token_slices[d] = w_slices
             logger.info(f'Saving processed documents to {documents_path}')
             torch.save((interned_documents, interned_document_token_slices), documents_path)
             sys.exit()
-
-        dataset = load_dataset('cose', 'v1.11')
 
         annotations_path = os.path.join(eraser_path, f'{split}.jsonl')
         annotations = annotations_from_jsonl(annotations_path)
@@ -186,91 +203,84 @@ def main(args):
         assert len(evidence_data) == num_examples
 
     missing_data_keys = [x for x in data_keys if not os.path.exists(os.path.join(data_path, f'{x}.pkl'))]
-    if args.num_samples is None and missing_data_keys:
+    if missing_data_keys:
         dataset_dict = ddict(list)
         actual_max_length = 0
-        if args.dataset in eraser_datasets:
-            if args.dataset not in ['cose', 'esnli']:
-                raise NotImplementedError
+            
+        q_marker = tokenizer('Q:', add_special_tokens=False)['input_ids']
+        a_marker = tokenizer('A:', add_special_tokens=False)['input_ids']
+        for idx, (instance_id, instance_evidence) in tqdm(enumerate(evidence_data.items()), desc=f'Building {args.split} dataset', total=num_examples):
+            # instance_docs = ddict(dict)
+            assert len(instance_evidence) == 1
+            doc = interned_documents[instance_id]
+            evidence_sentences = instance_evidence[instance_id]
 
-            if args.dataset == 'cose':
-                q_marker = tokenizer('Q:', add_special_tokens=False)['input_ids']
-                a_marker = tokenizer('A:', add_special_tokens=False)['input_ids']
-                for idx, (instance_id, instance_evidence) in tqdm(enumerate(evidence_data.items()), desc=f'Building {args.split} dataset', total=num_examples):
-                    instance_docs = ddict(dict)
-                    assert len(instance_evidence) == 1
-                    doc = interned_documents[instance_id]
-                    evidence_sentences = instance_evidence[instance_id]
+            question = list(chain.from_iterable(doc))
+            question_rationale = list(chain.from_iterable([x.kls for x in evidence_sentences]))
+            answers = evidence_sentences[0].query.split(' [sep] ')
+            answer_ids = [tokenizer(x, add_special_tokens=False)['input_ids'] for x in answers]
 
-                    question = list(chain.from_iterable(doc))
-                    question_rationale = list(chain.from_iterable([x.kls for x in evidence_sentences]))
-                    answers = evidence_sentences[0].query.split(' [sep] ')
-                    answer_ids = [tokenizer(x, add_special_tokens=False)['input_ids'] for x in answers]
+            # Explanations (TODO: put breakpointy to see what to do)
+            explanations = None
 
-                    input_ids, attention_mask, rationale, inv_rationale, rand_rationale, has_rationale = [], [], [], [], [], []
-                    for answer in answer_ids:
-                        cur_input_ids = [tokenizer.cls_token_id] + q_marker + question + [tokenizer.sep_token_id] + a_marker + answer + [tokenizer.sep_token_id]
+            input_ids, attention_mask, rationale, inv_rationale, rand_rationale, has_rationale, expl_ids, expl_mask = [], [], [], [], [], [], [], []
+            for answer in answer_ids:
+                cur_input_ids = [tokenizer.cls_token_id] + q_marker + question + [tokenizer.sep_token_id] + a_marker + answer + [tokenizer.sep_token_id]
 
-                        num_tokens = len(cur_input_ids)
-                        if num_tokens > actual_max_length:
-                            actual_max_length = num_tokens
-                        num_pad_tokens = max_length - num_tokens
-                        assert num_pad_tokens >= 0
+                num_tokens = len(cur_input_ids)
+                if num_tokens > actual_max_length:
+                    actual_max_length = num_tokens
+                num_pad_tokens = max_length - num_tokens
+                assert num_pad_tokens >= 0
 
-                        cur_input_ids += [tokenizer.pad_token_id] * num_pad_tokens
-                        input_ids.append(cur_input_ids)
+                cur_input_ids += [tokenizer.pad_token_id] * num_pad_tokens
+                input_ids.append(cur_input_ids)
 
-                        cur_attention_mask = [1] * num_tokens + [0] * num_pad_tokens
-                        attention_mask.append(cur_attention_mask)
+                cur_attention_mask = [1] * num_tokens + [0] * num_pad_tokens
+                attention_mask.append(cur_attention_mask)
 
-                        cur_rationale = [0] + [0]*len(q_marker) + question_rationale + [0] + [0]*len(a_marker) + [0]*len(answer) + [0]
-                        cur_rationale += [0] * num_pad_tokens
-                        assert len(cur_input_ids) == len(cur_rationale)
-                        rationale.append(cur_rationale)
+                cur_rationale = [0] + [0]*len(q_marker) + question_rationale + [0] + [0]*len(a_marker) + [0]*len(answer) + [0]
+                cur_rationale += [0] * num_pad_tokens
+                assert len(cur_input_ids) == len(cur_rationale)
+                rationale.append(cur_rationale)
 
-                        inv_rationale.append([1.0-x for x in cur_rationale])
-                        rand_rationale.append(list(np.random.randn(max_length)))
+                inv_rationale.append([1.0-x for x in cur_rationale])
+                rand_rationale.append(list(np.random.randn(max_length)))
 
-                        cur_has_rationale = int(sum(cur_rationale) > 0)
-                        if cur_has_rationale == 0:
-                            raise ValueError('empty rationale')
-                        has_rationale.append(cur_has_rationale)
+                cur_has_rationale = int(sum(cur_rationale) > 0)
+                if cur_has_rationale == 0:
+                    raise ValueError('empty rationale')
+                has_rationale.append(cur_has_rationale)
 
-                    label = classes.index(interned_annotations[idx].classification)
 
-                    dataset_dict['item_idx'].append(idx)
-                    dataset_dict['input_ids'].append(input_ids)
-                    dataset_dict['attention_mask'].append(attention_mask)
-                    dataset_dict['rationale'].append(rationale)
-                    dataset_dict['inv_rationale'].append(inv_rationale)
-                    dataset_dict['rand_rationale'].append(rand_rationale)
-                    dataset_dict['has_rationale'].append(has_rationale)
-                    dataset_dict['label'].append(label)
+                # Explanation ##############
+                cur_expl_ids = [tokenizer.cls_token_id] + explanations + [tokenizer.sep_token_id] + [tokenizer.sep_token_id]
 
-            elif args.dataset == 'esnli':
-                for idx, (instance_id, instance_evidence) in tqdm(enumerate(evidence_data.items()), desc=f'Building {args.split} dataset', total=num_examples):
-                    instance_docs = ddict(dict)
-                    assert len(instance_evidence) in [1, 2]
-                    for doc_type in ['premise', 'hypothesis']:
-                        doc_id = f'{instance_id}_{doc_type}'
-                        doc = instance_evidence[doc_id]
-                        if doc:
-                            instance_docs[doc_type]['text'] = doc[0][5]
-                            instance_docs[doc_type]['rationale'] = list(doc[0][0])
-                        else:
-                            instance_docs[doc_type]['text'] = interned_documents[doc_id][0]
-                            instance_docs[doc_type]['rationale'] = [0] * len(interned_documents[doc_id][0])
+                num_tokens = len(cur_expl_ids)
+                if num_tokens > actual_max_length:
+                    actual_max_length = num_tokens
+                num_pad_tokens = max_length - num_tokens
+                assert num_pad_tokens >= 0
 
-                    input_ids = instance_docs['premise']['text'] + [tokenizer.sep_token_id] + instance_docs['hypothesis']['text']
-                    assert all([x != tokenizer.unk_token_id for x in input_ids])
-                    rationale = instance_docs['premise']['rationale'] + [0] + instance_docs['hypothesis']['rationale']
-                    dataset_dict, actual_max_length = update_dataset_dict(idx, dataset_dict, input_ids, rationale, max_length, actual_max_length, tokenizer, interned_annotations, classes)
+                cur_expl_ids += [tokenizer.pad_token_id] * num_pad_tokens
+                expl_ids.append(cur_expl_ids)
 
-            else:
-                raise NotImplementedError
+                cur_expl_mask = [1] * num_tokens + [0] * num_pad_tokens
+                expl_mask.append(cur_expl_mask)
 
-        else:
-            raise NotImplementedError
+            label = classes.index(interned_annotations[idx].classification)
+
+            dataset_dict['item_idx'].append(idx)
+            dataset_dict['input_ids'].append(input_ids)
+            dataset_dict['attention_mask'].append(attention_mask)
+            dataset_dict['rationale'].append(rationale)
+            dataset_dict['inv_rationale'].append(inv_rationale)
+            dataset_dict['rand_rationale'].append(rand_rationale)
+            dataset_dict['has_rationale'].append(has_rationale)
+            dataset_dict['label'].append(label)
+
+            dataset_dict['expl_ids'].append(expl_ids)
+            dataset_dict['expl_mask'].append(expl_mask)
 
         print(f'Actual max length: {actual_max_length}')
 
@@ -287,7 +297,6 @@ if __name__ == '__main__':
                         choices=['cose', 'esnli', 'movies', 'multirc', 'sst', 'amazon', 'yelp', 'stf', 'olid', 'irony'])
     parser.add_argument('--arch', type=str, default='google/bigbird-roberta-base', choices=['google/bigbird-roberta-base', 'bert-base-uncased'])
     parser.add_argument('--split', type=str, help='Dataset split', choices=['train', 'dev', 'test'])
-    parser.add_argument('--num_samples', type=int, default=None, help='Number of examples to sample. None means all available examples are used.')
     parser.add_argument('--pct_train_rationales', type=float, default=None, help='Percentage of train examples to provide gold rationales for. None means all available train examples are used.')
     parser.add_argument('--seed', type=int, default=0, help='Random seed')
     args = parser.parse_args()
