@@ -151,9 +151,9 @@ def main(args):
         documents = load_documents(eraser_path) # -> Dict[str, List[List[str]]]
         logger.info(f'Loaded {len(documents)} documents')
 
-        # if args.dataset == 'cose':
-        #     logger.info(f'Loading CoS-E v1.11 {args.split}')
-        #     dataset = load_dataset('cose', 'v1.11')
+        if args.dataset == 'cose':
+            logger.info(f'Loading CoS-E v1.11 {args.split}')
+            dataset = load_dataset('cose', 'v1.11')
 
         #     if args.split == 'train':
         #         dataset = dataset['train'].train_test_split(test_size=0.11)['train']
@@ -197,7 +197,7 @@ def main(args):
             sys.exit()
 
         annotations_path = os.path.join(eraser_path, f'{split}.jsonl')
-        annotations = annotations_from_jsonl(annotations_path)
+        annotations = annotations_from_jsonl(annotations_path, dataset)
         interned_annotations = bert_intern_annotation(annotations, tokenizer)
         evidence_data = annotations_to_evidence_token_identification(annotations, documents, interned_documents, interned_document_token_slices)
         assert len(evidence_data) == num_examples
@@ -297,6 +297,7 @@ if __name__ == '__main__':
                         choices=['cose', 'esnli', 'movies', 'multirc', 'sst', 'amazon', 'yelp', 'stf', 'olid', 'irony'])
     parser.add_argument('--arch', type=str, default='google/bigbird-roberta-base', choices=['google/bigbird-roberta-base', 'bert-base-uncased'])
     parser.add_argument('--split', type=str, help='Dataset split', choices=['train', 'dev', 'test'])
+    parser.add_argument('--num_samples', type=int, default=None, help='Number of examples to sample. None means all available examples are used.')
     parser.add_argument('--pct_train_rationales', type=float, default=None, help='Percentage of train examples to provide gold rationales for. None means all available train examples are used.')
     parser.add_argument('--seed', type=int, default=0, help='Random seed')
     args = parser.parse_args()
