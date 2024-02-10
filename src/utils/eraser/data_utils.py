@@ -6,7 +6,7 @@ from tokenizers import TextInputSequence
 
 from src.utils.eraser.utils import Annotation, Evidence, annotations_from_jsonl, load_documents
 
-SentenceEvidence = namedtuple('SentenceEvidence', 'kls ann_id query docid index sentence')
+SentenceEvidence = namedtuple('SentenceEvidence', 'kls ann_id query docid index sentence explanation')
 
 logging.basicConfig(level=logging.DEBUG, format='%(relativeCreated)6d %(threadName)s %(message)s')
 logger = logging.getLogger(__name__)
